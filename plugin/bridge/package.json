@@ -1,0 +1,20 @@
+{
+  "name": "vikunja-bridge",
+  "version": "0.1.0",
+  "description": "Stdio MCP bridge that authenticates each pilot to the hosted Vikunja MCP server and forwards calls over Streamable HTTP.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun run src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "build:binary": "bun build src/index.ts --compile --target=bun-darwin-arm64 --outfile=vikunja-bridge"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.24.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/node": "^22.9.3",
+    "typescript": "^5.6.2"
+  }
+}

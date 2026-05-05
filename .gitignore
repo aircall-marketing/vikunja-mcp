@@ -56,3 +56,8 @@ temp/
 !.yarn/releases
 !.yarn/sdks
 !.yarn/versionstemp-coverage/
+
+# Bridge build artifacts (the compiled binary + mcpb stage are built fresh)
+plugin/bridge/vikunja-bridge
+plugin/bridge/aircall-vikunja-mcp-*.mcpb
+plugin/bridge/mcpb-stage/
