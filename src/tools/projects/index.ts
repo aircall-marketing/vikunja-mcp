@@ -121,8 +121,10 @@ export function registerProjectsTool(
               return await getProject(args as GetProjectArgs);
 
             case 'create':
+              // Accept `name` as an alias for `title` — common LLM-API confusion.
+              if (!args.title && args.name) args.title = args.name;
               if (!args.title) {
-                throw new MCPError(ErrorCode.VALIDATION_ERROR, 'Project title is required for create operation');
+                throw new MCPError(ErrorCode.VALIDATION_ERROR, 'Project title is required for create operation (accepts `title` or `name`)');
               }
               return await createProject(args as CreateProjectArgs);
 
@@ -130,6 +132,8 @@ export function registerProjectsTool(
             if (!args.id) {
               throw new MCPError(ErrorCode.VALIDATION_ERROR, 'Project ID is required for update operation');
             }
+            // Accept `name` as an alias for `title` on update too.
+            if (!args.title && args.name) args.title = args.name;
             return await updateProject(args as UpdateProjectArgs);
 
           case 'delete':
@@ -249,6 +253,8 @@ export function registerProjectTools(
       subcommand: z.enum(['list', 'get', 'create', 'update', 'delete', 'archive', 'unarchive']),
       id: z.number().optional(),
       title: z.string().optional(),
+      // Alias for `title` — accepted because LLMs often reach for `name` first.
+      name: z.string().optional(),
       description: z.string().optional(),
       parentProjectId: z.number().optional(),
       isArchived: z.boolean().optional(),
@@ -275,8 +281,9 @@ export function registerProjectTools(
               return await getProject(args as GetProjectArgs);
 
             case 'create':
+              if (!args.title && args.name) args.title = args.name;
               if (!args.title) {
-                throw new MCPError(ErrorCode.VALIDATION_ERROR, 'Project title is required for create operation');
+                throw new MCPError(ErrorCode.VALIDATION_ERROR, 'Project title is required for create operation (accepts `title` or `name`)');
               }
               return await createProject(args as CreateProjectArgs);
 
@@ -284,6 +291,7 @@ export function registerProjectTools(
               if (!args.id) {
                 throw new MCPError(ErrorCode.VALIDATION_ERROR, 'Project ID is required for update operation');
               }
+              if (!args.title && args.name) args.title = args.name;
               return await updateProject(args as UpdateProjectArgs);
 
             case 'delete':

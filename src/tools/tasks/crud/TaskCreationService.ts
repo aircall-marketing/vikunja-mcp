@@ -26,6 +26,9 @@ export interface CreateTaskArgs {
   assignees?: number[];
   repeatAfter?: number;
   repeatMode?: 'day' | 'week' | 'month' | 'year';
+  // `done: true` is honored by chaining create -> update, since Vikunja's
+  // POST /tasks endpoint silently drops the field. See createTask body below.
+  done?: boolean;
   // Session ID for AORP response tracking
   sessionId?: string;
 }
@@ -119,6 +122,22 @@ export async function createTask(args: CreateTaskArgs): Promise<{ content: Array
       // Attempt to clean up the partially created task
       await rollbackTaskCreation(client, creationState, updateError);
       // The rollback function will re-throw the original error with context
+    }
+
+    // Vikunja's POST /tasks ignores `done` — to honor `done: true` at create
+    // time, chain a follow-up update. Caller doesn't have to issue a separate
+    // PUT.
+    if (args.done === true && createdTask.id) {
+      try {
+        await client.tasks.updateTask(createdTask.id, { ...createdTask, done: true });
+      } catch (doneError) {
+        // Don't roll back the whole task creation if marking done fails —
+        // the task exists and is usable. Surface the issue in logs only.
+        // (The final getTask below will reflect actual state.)
+        const message = doneError instanceof Error ? doneError.message : String(doneError);
+        // eslint-disable-next-line no-console
+        console.error(`createTask: post-create done update failed for task ${createdTask.id}: ${message}`);
+      }
     }
 
     // Fetch the complete task with labels and assignees
