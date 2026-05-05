@@ -118,46 +118,34 @@ export async function bulkUpdateTasks(args: BulkUpdateArgs): Promise<{ content: 
 
     try {
       if (!args.field) throw new MCPError(ErrorCode.VALIDATION_ERROR, 'Field required');
-      const bulkOp = { task_ids: taskIds, field: args.field, value: args.value };
-      if (args.field === 'repeat_mode' && typeof args.value === 'string') {
-        bulkOp.value = REPEAT_MODE_MAP[args.value] ?? args.value;
-      }
 
-      const result = await client.tasks.bulkUpdateTasks(bulkOp);
-      let updatedTasks: Task[] = [];
-      let shouldFallback = false;
-
-      if (Array.isArray(result) && result.length > 0) {
-        const isValid = result.every(t => t && typeof t === 'object' && 'project_id' in t && 'title' in t);
-        let hasValue = true;
-        if (args.field && ['priority', 'done', 'due_date', 'project_id'].includes(args.field)) {
-          hasValue = result.every(t => t[args.field as keyof Task] === args.value);
-        }
-        if (isValid && hasValue) {
-          updatedTasks = result;
-        } else if (isValid && !hasValue) {
-          // API returned success but values weren't updated - trigger fallback
-          shouldFallback = true;
-        }
-      }
-
-      // If we have valid updated tasks and no fallback needed, return success
-      if (updatedTasks.length > 0 && !shouldFallback) {
-        return successResponse('update-task', `Successfully updated ${taskIds.length} tasks`, updatedTasks, { count: taskIds.length, affectedFields: [args.field] });
-      }
-
-      if (shouldFallback) {
-        logger.warn('Bulk update API returned success but values not updated, falling back to individual updates');
-        return await updateWithFallback();
-      }
-
-      const fetchResult = await processors.update.processBatches(taskIds, async (id) => await client.tasks.getTask(id));
-      return successResponse('update-task', `Successfully updated ${taskIds.length} tasks${fetchResult.failed.length > 0 ? ` (${fetchResult.failed.length} could not be fetched)` : ''}`, fetchResult.successful, {
-        count: taskIds.length, affectedFields: [args.field], ...(fetchResult.failed.length > 0 && { fetchErrors: fetchResult.failed.length }),
-      });
-    } catch (bulkError) {
-      logger.warn('Bulk API failed, using fallback', { error: (bulkError as Error).message });
+      // GOTCHA — Aircall fork data-loss fix.
+      // Vikunja's native POST /tasks/bulk endpoint silently treats the
+      // {task_ids, field, value} payload (what node-vikunja v0.4.0 sends)
+      // as a partial task object with `field` and `value` as unknown
+      // top-level keys, then full-replaces every targeted task with that
+      // object. Result: title/description/due_date/etc. all reset to
+      // zero values, with only the targeted field set.
+      //
+      // The pre-existing "shouldFallback" verifier (below) only catches
+      // this when the targeted field itself fails to apply — silently
+      // accepts wide collateral damage on the unverified fields.
+      //
+      // Until either (a) node-vikunja sends the correct payload shape or
+      // (b) Vikunja's API tightens its validation, route ALL bulk updates
+      // through the per-task fallback path. updateWithFallback iterates
+      // taskIds, fetches current state, and PATCHes per-task with the
+      // merged object — preserving every other field. Special-cases
+      // bucket_id to call moveTaskToBucket (per-view kanban endpoint).
+      // Performance cost: N HTTP calls instead of 1, but data integrity
+      // matters more than throughput at fleet scale. The native-bulk
+      // implementation that was here is preserved in git history (commit
+      // before fix/bulk-always-fallback) for the day node-vikunja or the
+      // Vikunja API tightens up enough to revisit.
       return await updateWithFallback();
+    } catch (bulkError) {
+      logger.warn('Bulk update fallback raised', { error: (bulkError as Error).message });
+      throw bulkError;
     }
   } catch (error) {
     if (error instanceof MCPError) throw error;
