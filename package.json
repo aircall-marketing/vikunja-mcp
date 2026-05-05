@@ -56,10 +56,12 @@
   },
   "dependencies": {
     "@cfworker/json-schema": "^4.1.1",
+    "@google-cloud/secret-manager": "^6.1.2",
     "@modelcontextprotocol/sdk": "^1.20.2",
     "async-mutex": "^0.5.0",
     "better-sqlite3": "^12.4.1",
     "dotenv": "^17.2.3",
+    "express": "^5.2.1",
     "express-rate-limit": "^8.2.1",
     "jsonata": "^2.1.0",
     "node-vikunja": "^0.4.0",
@@ -71,6 +73,7 @@
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.12",
+    "@types/express": "^5.0.6",
     "@types/jest": "^30.0.0",
     "@types/markdown-it": "^14.1.2",
     "@types/node": "^24.3.0",
