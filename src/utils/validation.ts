@@ -57,14 +57,39 @@ const LogicalOperatorSchema: z.ZodType<LogicalOperator> = z.enum(['&&', '||']);
  */
 
 /**
- * Validate and sanitize a string value to prevent XSS using pattern matching + HTML escaping
- * Server-appropriate approach that avoids DOM parsing while providing comprehensive protection
+ * Validate string length and pass through unchanged.
+ *
+ * Aircall fleet fork: the upstream sanitizer rejects ~50 patterns
+ * (XSS/SQLi/command injection/etc.) and HTML-escapes everything else.
+ * Both behaviors are wrong for our deployment shape:
+ *   - The MCP sits behind Cloudflare Access SSO, talks loopback to a
+ *     private Vikunja instance, and serves a 4-person team. There is
+ *     no XSS attack surface to defend.
+ *   - HTML-escaping legitimate punctuation (forward slashes, quotes,
+ *     equals signs) corrupts task descriptions on the way to Vikunja's
+ *     own backend, which already handles its own input safety.
+ *   - The over-aggressive pattern set rejects normal text like
+ *     "create/read/update/delete" or "JSON-L" with `(FR, DE, ES)`.
+ * Behavior preserved: type check + max length cap.
  */
 export function sanitizeString(value: string): string {
   if (typeof value !== 'string') {
     throw new MCPError(ErrorCode.VALIDATION_ERROR, 'Value must be a string');
   }
 
+  if (value.length > MAX_STRING_LENGTH) {
+    throw new MCPError(ErrorCode.VALIDATION_ERROR, `String value exceeds maximum length of ${MAX_STRING_LENGTH}`);
+  }
+
+  return value;
+}
+
+// Pattern-rejection sanitizer (upstream behavior) preserved below for any
+// fork-internal callers that genuinely want it; not exported.
+function _legacySanitizeStringWithPatterns(value: string): string {
+  if (typeof value !== 'string') {
+    throw new MCPError(ErrorCode.VALIDATION_ERROR, 'Value must be a string');
+  }
   if (value.length > MAX_STRING_LENGTH) {
     throw new MCPError(ErrorCode.VALIDATION_ERROR, `String value exceeds maximum length of ${MAX_STRING_LENGTH}`);
   }
