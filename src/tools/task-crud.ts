@@ -125,6 +125,11 @@ export function registerTaskCrudTool(
       // List specific filters
       allProjects: z.boolean().optional(),
       done: z.boolean().optional(),
+      // Kanban bucket move (Aircall fork) — set on `update` to move a task
+      // into the given bucket on the project's kanban view; viewId is
+      // optional, auto-resolved to the first kanban-mode view.
+      bucketId: z.number().optional(),
+      viewId: z.number().optional(),
       // Session ID for AORP response tracking
       sessionId: z.string().optional(),
     },

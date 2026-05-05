@@ -22,6 +22,16 @@ export class VikunjaClientFactory {
   ) {}
 
   /**
+   * Aircall fork: expose the auth manager so tools that need to make
+   * Vikunja API calls outside of node-vikunja's surface (e.g. the v2
+   * per-view bucket endpoints, which the lib doesn't wrap) can pull
+   * the session URL + token directly.
+   */
+  getAuthManager(): AuthManager {
+    return this.authManager;
+  }
+
+  /**
    * Get an authenticated Vikunja client instance
    */
   getClient(): VikunjaClient {

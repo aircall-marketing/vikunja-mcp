@@ -13,6 +13,8 @@ import { formatAorpAsMarkdown } from '../../utils/response-factory';
 import { AUTH_ERROR_MESSAGES, REPEAT_MODE_MAP } from './constants';
 import { bulkOperationValidator } from './bulk/BulkOperationValidator';
 import type { BulkUpdateArgs, BulkDeleteArgs, BulkCreateArgs, BulkCreateTaskData } from './bulk/BulkOperationValidator';
+import { moveTaskToBucket } from './buckets';
+import { getAuthManagerFromContext } from '../../client';
 
 // ==================== BATCH PROCESSORS ====================
 
@@ -59,6 +61,22 @@ export async function bulkUpdateTasks(args: BulkUpdateArgs): Promise<{ content: 
     const updateWithFallback = async (): Promise<{ content: Array<{ type: 'text'; text: string }> }> => {
       const updateResult = await processors.update.processBatches(taskIds, async (taskId) => {
         const current = await client.tasks.getTask(taskId);
+
+        // Special case: bucket_id requires the per-view kanban endpoint;
+        // PATCH /tasks ignores it on Vikunja v2.
+        if (args.field === 'bucket_id') {
+          const projectId = current.project_id;
+          if (!projectId) {
+            throw new MCPError(
+              ErrorCode.VALIDATION_ERROR,
+              `Cannot move task ${taskId} to bucket: task has no project_id.`,
+            );
+          }
+          const authManager = await getAuthManagerFromContext();
+          await moveTaskToBucket(authManager, taskId, projectId, Number(args.value));
+          return current;
+        }
+
         const update = applyFieldUpdate({ ...current }, args.field, args.value);
 
         const updated = await client.tasks.updateTask(taskId, update);

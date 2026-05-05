@@ -4,7 +4,7 @@
  */
 
 import { MCPError, ErrorCode } from '../../../types';
-import { getClientFromContext } from '../../../client';
+import { getClientFromContext, getAuthManagerFromContext } from '../../../client';
 import type { Task, VikunjaClient } from 'node-vikunja';
 import { validateDateString, validateId, convertRepeatConfiguration } from '../validation';
 import { isAuthenticationError } from '../../../utils/auth-error-handler';
@@ -13,6 +13,7 @@ import { transformApiError, handleFetchError, handleStatusCodeError } from '../.
 import { AUTH_ERROR_MESSAGES } from '../constants';
 import { createTaskResponse } from './TaskResponseFormatter';
 import { formatAorpAsMarkdown } from '../../../utils/response-factory';
+import { moveTaskToBucket } from '../buckets';
 
 export interface UpdateTaskArgs {
   id?: number;
@@ -25,6 +26,12 @@ export interface UpdateTaskArgs {
   assignees?: number[];
   repeatAfter?: number;
   repeatMode?: 'day' | 'week' | 'month' | 'year';
+  // Kanban bucket move: if bucketId is provided, the task is moved into
+  // that bucket on the project's kanban view (or a specific viewId if
+  // provided). Routes through POST /projects/{p}/views/{v}/buckets/{b}/tasks
+  // since Vikunja v2 dropped the writable bucket_id field on the task.
+  bucketId?: number;
+  viewId?: number;
   // Session ID for AORP response tracking
   sessionId?: string;
 }
@@ -70,6 +77,21 @@ export async function updateTask(args: UpdateTaskArgs): Promise<{ content: Array
     // Update assignees if provided
     if (args.assignees !== undefined) {
       await updateTaskAssignees(client, args.id, args.assignees);
+    }
+
+    // Kanban bucket move (Vikunja v2 requires the per-view endpoint;
+    // bucket_id on the task is non-writable).
+    if (args.bucketId !== undefined) {
+      const projectId = updateState.currentTask.project_id;
+      if (!projectId) {
+        throw new MCPError(
+          ErrorCode.VALIDATION_ERROR,
+          `Cannot move task ${args.id} to bucket: task has no project_id.`,
+        );
+      }
+      const authManager = await getAuthManagerFromContext();
+      await moveTaskToBucket(authManager, args.id, projectId, args.bucketId, args.viewId);
+      updateState.affectedFields.push('bucketId');
     }
 
     // Fetch the complete updated task

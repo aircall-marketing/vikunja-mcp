@@ -100,6 +100,10 @@ export const bulkOperationValidator = {
       'labels',
       'repeat_after',
       'repeat_mode',
+      // Aircall fork: bulk kanban-bucket move. Special-cased in
+      // bulk-operations-simplified.ts to route through the per-view
+      // POST /projects/{p}/views/{v}/buckets/{b}/tasks endpoint.
+      'bucket_id',
     ];
 
     if (!args.field || !allowedFields.includes(args.field)) {

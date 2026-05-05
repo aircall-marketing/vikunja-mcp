@@ -82,6 +82,23 @@ class ClientContext {
   }
 
   /**
+   * Get the auth manager from the current factory (Aircall fork addition).
+   * Exposed for tools that need raw URL+token access — e.g. the per-view
+   * bucket-task endpoints not wrapped by node-vikunja.
+   */
+  async getAuthManager(): Promise<import('./auth/AuthManager').AuthManager> {
+    const release = await this.factoryMutex.acquire();
+    try {
+      if (this.clientFactory) {
+        return this.clientFactory.getAuthManager();
+      }
+      throw createAuthRequiredError('get Vikunja auth manager');
+    } finally {
+      release();
+    }
+  }
+
+  /**
    * Check if factory is available (thread-safe)
    */
   async hasFactory(): Promise<boolean> {
@@ -100,6 +117,16 @@ class ClientContext {
 export async function getClientFromContext(): Promise<VikunjaClient> {
   const context = await ClientContext.getInstanceAsync();
   return context.getClient();
+}
+
+/**
+ * Get the auth manager from the current global context (Aircall fork).
+ * Used by tools that need to call Vikunja API endpoints not wrapped by
+ * node-vikunja (e.g. per-view kanban bucket moves).
+ */
+export async function getAuthManagerFromContext(): Promise<import('./auth/AuthManager').AuthManager> {
+  const context = await ClientContext.getInstanceAsync();
+  return context.getAuthManager();
 }
 
 /**
